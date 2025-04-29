@@ -1,0 +1,3 @@
+# simplechain
+
+Just an experiment in creating a blockchain that can serve as a sort of tamper-proof database through the use of a proof-of-work mechanism.  The basic data type, called Transaction, could be anything that can be serialized into bytes.  A Block will hold any number of Transactions up to a target block size.  A Miner will continually do proof-of-work to create a chain of hashes to secure the data.  (An attacker would have to do a comparable amount of work in order to forge a blockchain downstream from any change they made.)
