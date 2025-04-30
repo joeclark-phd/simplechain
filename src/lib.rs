@@ -1,4 +1,4 @@
-mod simple_chain;
+mod simple_block;
 mod utilities;
 
 pub fn add(left: u64, right: u64) -> u64 {
