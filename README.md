@@ -28,7 +28,7 @@ data, not necessarily just financial transactions.
     node.queue_record(record);
 
 Be sure to queue at least 5 records, because the miner mines blocks with five transactions each from the queue, until the queue is empty (or has fewer than 5, anyway).
-Commene mining with this appropriately-named method:
+Commence mining with this appropriately-named method:
 
     node.commence_mining();
 
