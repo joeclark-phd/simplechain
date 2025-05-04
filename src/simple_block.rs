@@ -1,4 +1,4 @@
-use bincode::{config, Encode};
+use bincode::{config, Decode, Encode};
 
 use crate::utilities::sha3_256_hash;
 
@@ -7,7 +7,7 @@ const MINING_PAYOUT: i32 = 25;
 /// A toy struct representing a transaction, which will be encapsulated by a SimpleRecord.
 /// SimpleRecord is the main "data row" element of this blockchain, and anything that can 
 /// be encoded as a vector of bytes (Vec<u8>) can represent its "data".
-#[derive(Encode)]
+#[derive(Encode, Decode)]
 pub struct SimpleTransaction {
     from: Option<String>,
     to: String,
@@ -40,7 +40,7 @@ impl SimpleTransaction {
 /// 
 /// NOTE: Not knowing what the data is, there could be duplicates.  If we want hashes to be unique,
 /// we could add a 'timestamp' field to SimpleRecord.
-#[derive(Encode)]
+#[derive(Encode, Debug, Decode)]
 pub struct SimpleRecord {
     id: Vec<u8>,
     data: Vec<u8>,
@@ -64,7 +64,7 @@ impl SimpleRecord {
 
 }
 
-#[derive(Encode)]
+#[derive(Encode, Decode)]
 pub struct SimpleBlock {
     id: Vec<u8>,
     prev: Option<Vec<u8>>,
@@ -106,6 +106,11 @@ impl SimpleBlock {
     pub fn serialize(&self) -> Vec<u8> {
         let config = config::standard();
         bincode::encode_to_vec(self, config).unwrap()
+    }
+
+    pub fn deserialize(bytes: &[u8]) -> Self {
+        let config = config::standard();
+        bincode::decode_from_slice(bytes, config).unwrap().0
     }
 
     fn serialize_records(&self) -> Vec<u8> {
@@ -178,9 +183,9 @@ impl SimpleBlock {
 
 
 
-
+#[cfg(test)]
 mod tests {
-    use crate::simple_block::{SimpleBlock, SimpleRecord, SimpleTransaction};
+    use super::*;
 
 
     #[test]

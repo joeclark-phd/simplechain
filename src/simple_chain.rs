@@ -1,8 +1,8 @@
 use ethnum::U256;
 use sled::{transaction::TransactionResult, Db};
-use std::{env::current_dir, io::Read};
+use std::env::current_dir;
 
-use crate::{simple_block::{SimpleBlock, SimpleRecord, SimpleTransaction}, utilities::digest};
+use crate::simple_block::{SimpleBlock, SimpleRecord, SimpleTransaction};
 
 const DATABASE_NAME: &str = "data";
 const BLOCKCHAIN_KEY: &str = "blockchain";
@@ -13,12 +13,12 @@ const DIFFICULTY: u8 = 243;
 
 /// This struct maintains a single blockchain on the current computer
 /// using a `sled` embedded database in the current working directory.
-pub struct SimpleBlockchain {
+pub struct SimpleChain {
     db: Db,
     last_block_hash: Vec<u8>,
 }
 
-impl SimpleBlockchain {
+impl SimpleChain {
 
     pub fn add_block(&mut self, block: SimpleBlock) {
         let block_hash = block.get_hash();
@@ -35,6 +35,12 @@ impl SimpleBlockchain {
         self.last_block_hash = last_block_hash;
     }
 
+    pub fn get_last_block(&self) -> SimpleBlock {
+        let blocks_tree = self.db.open_tree(BLOCKCHAIN_KEY).unwrap();
+        let block_bytes = blocks_tree.get(self.last_block_hash.clone()).unwrap().expect("Issue getting bytes.");
+        SimpleBlock::deserialize(block_bytes.as_ref())
+    }
+
 }
 
 
@@ -44,10 +50,11 @@ impl SimpleBlockchain {
 /// the `initialize` method will either create a new one or (re)connect to the
 /// existing one when called.
 pub struct SimpleNode {
-    chain: SimpleBlockchain,
+    chain: SimpleChain,
     /// The SHA3-256 digest of the node owner's account.
     /// Will be the recipient of the genesis block and mining payouts.
     owner: String,
+    queue: Vec<SimpleRecord>,
 }
 
 impl SimpleNode {
@@ -63,7 +70,7 @@ impl SimpleNode {
         let db = sled::open(current_dir().unwrap().join(DATABASE_NAME)).unwrap();
         let blocks_tree = db.open_tree(BLOCKCHAIN_KEY).unwrap();
         let data = blocks_tree.get(LAST_BLOCK_KEY).unwrap();
-        let mut blockchain: SimpleBlockchain = SimpleBlockchain {
+        let mut blockchain: SimpleChain = SimpleChain {
                 db,
                 last_block_hash: vec![]
             };
@@ -84,8 +91,34 @@ impl SimpleNode {
         }
         Self {
             chain: blockchain,
-            owner
+            owner,
+            queue: vec![],
         }
+    }
+
+    pub fn queue_record(&mut self, record: SimpleRecord) {
+        self.queue.push(record);
+    }
+
+    pub fn commence_mining(&mut self) {
+        while self.queue.len() >= 5 {
+            // Taking the LAST 5 records in queue for the new block.  In a real application
+            // we would have a limit on block size and use that limit to determine how many records
+            // can be stored in the block.
+            let mut recs = self.queue.split_off(self.queue.len()-5);
+            // add the mining transaction that pays the miner
+            recs.push(SimpleRecord::new(SimpleTransaction::new_mining(self.owner.clone()).serialize()));
+            //println!("records to mine: {:?}",recs);
+            let last_block = self.chain.get_last_block();
+            let mut new_block = SimpleBlock::new(
+                last_block.get_hash().clone(),
+                *last_block.get_height()+1,
+                recs,
+            );
+            mine_block(&mut new_block);
+            self.chain.add_block(new_block);
+        }
+        println!("All transactions in queue have been mined into the blockchain.  Stopping miner.");
     }
 
 }
@@ -95,12 +128,12 @@ impl SimpleNode {
 pub fn mine_block(block: &mut SimpleBlock) {
     let target: U256 = U256::new(1) << DIFFICULTY;
     loop {
-        println!("trying to mine block {} with nonce {}", block.get_height(), block.get_nonce());
+        // println!("trying to mine block {} with nonce {}", block.get_height(), block.get_nonce());
         let blockhash_bytes: [u8; 32] = block.get_hash().as_slice().try_into().unwrap();
-        //println!("blockhash_bytes: {}",hex::encode(blockhash_bytes));
+        // println!("blockhash_bytes: {}",hex::encode(blockhash_bytes));
         let blockhash_num = U256::from_ne_bytes(blockhash_bytes);
         if blockhash_num < target {
-            println!("Success!");
+            println!("Mined block {} successfully after computing {} hashes...", block.get_height(), block.get_nonce());
             break;
         } else {
             block.increment_nonce();
