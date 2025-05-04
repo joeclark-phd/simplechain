@@ -2,19 +2,29 @@ use bincode::{config, Encode};
 
 use crate::utilities::sha3_256_hash;
 
+const MINING_PAYOUT: i32 = 25;
+
 /// A toy struct representing a transaction, which will be encapsulated by a SimpleRecord.
 /// SimpleRecord is the main "data row" element of this blockchain, and anything that can 
 /// be encoded as a vector of bytes (Vec<u8>) can represent its "data".
 #[derive(Encode)]
 pub struct SimpleTransaction {
-    from: String,
+    from: Option<String>,
     to: String,
     amount: i32,
 }
 impl SimpleTransaction {
 
     pub fn new(from: String, to: String, amount: i32) -> Self {
-       Self { from, to, amount, }
+       Self { from: Some(from), to, amount, }
+    }
+
+    pub fn new_mining(to: String) -> Self {
+        Self { 
+            from: None,
+            to,
+            amount: MINING_PAYOUT,
+        }
     }
 
     pub fn serialize(&self) -> Vec<u8> {
@@ -57,20 +67,34 @@ impl SimpleRecord {
 #[derive(Encode)]
 pub struct SimpleBlock {
     id: Vec<u8>,
-    prev: Vec<u8>,
-    height: i32,
+    prev: Option<Vec<u8>>,
+    height: u32,
     records: Vec<SimpleRecord>,
     record_hash: Vec<u8>,
-    nonce: i64
+    nonce: u64
 }
 impl SimpleBlock {
 
-    pub fn new(prev: Vec<u8>, height: i32, records: Vec<SimpleRecord>) -> Self {
+    pub fn new(prev: Vec<u8>, height: u32, records: Vec<SimpleRecord>) -> Self {
         let mut block = Self {
             id: vec![],
-            prev,
+            prev: Some(prev),
             height,
             records,
+            record_hash: vec![],
+            nonce: 0
+        };
+        block.record_hash = block.hash_records();
+        block.rehash();
+        block
+    }
+
+    pub fn new_genesis( genesis_record: SimpleRecord ) -> Self {
+        let mut block = Self {
+            id: vec![],
+            prev: None,
+            height: 0,
+            records: vec!(genesis_record),
             record_hash: vec![],
             nonce: 0
         };
@@ -122,9 +146,22 @@ impl SimpleBlock {
         self.id = sha3_256_hash(blockcopy.serialize().as_slice());
     }
 
-    pub fn set_nonce(&mut self, nonce: i64) {
+    pub fn increment_nonce(&mut self) {
+        self.nonce += 1;
+        self.rehash();
+    }
+
+    pub fn set_nonce(&mut self, nonce: u64) {
         self.nonce = nonce;
         self.rehash();
+    }
+
+    pub fn get_height(&self) -> &u32 {
+        &self.height
+    }
+
+    pub fn get_nonce(&self) -> &u64 {
+        &self.nonce
     }
 
     pub fn get_hash(&self) -> &Vec<u8> {
@@ -143,7 +180,8 @@ impl SimpleBlock {
 
 
 mod tests {
-    use super::*;
+    use crate::simple_block::{SimpleBlock, SimpleRecord, SimpleTransaction};
+
 
     #[test]
     fn rec_id_is_hash_of_rec_data() {

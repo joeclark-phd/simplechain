@@ -1,5 +1,6 @@
-mod simple_block;
-mod utilities;
+pub mod simple_block;
+pub mod simple_blockchain;
+pub mod utilities;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right
